@@ -6,3 +6,64 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum LinkStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String?
+  passwordHash String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  links        Link[]
+}
+
+model Link {
+  id             String          @id @default(uuid())
+  ownerId        String
+  shortCode      String          @unique
+  destinationUrl String
+  title          String?
+  status         LinkStatus      @default(ACTIVE)
+  expiresAt      DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  owner          User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  clickEvents    ClickEvent[]
+  dailyStats     DailyLinkStat[]
+
+  @@index([ownerId, createdAt])
+}
+
+model ClickEvent {
+  id           String   @id @default(uuid())
+  linkId       String
+  clickedAt    DateTime @default(now())
+  referrerHost String?
+  userAgent    String?
+  browser      String?
+  os           String?
+  device       String?
+  ipHash       String?
+  link         Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([linkId, clickedAt])
+  @@index([clickedAt])
+}
+
+model DailyLinkStat {
+  id             String   @id @default(uuid())
+  linkId         String
+  day            DateTime @db.Date
+  clicks         Int      @default(0)
+  uniqueVisitors Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  link           Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@unique([linkId, day])
+}
