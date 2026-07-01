@@ -7,10 +7,10 @@
     "frontend"
   ],
   "scripts": {
-    "lint": "node -e \"const fs=require('fs'),cp=require('child_process'),npm=process.platform==='win32'?'npm.cmd':'npm'; for (const w of ['backend','frontend']) if (fs.existsSync(w+'/package.json')) cp.execFileSync(npm,['run','lint','--workspace',w,'--if-present'],{stdio:'inherit'});\"",
-    "typecheck": "node -e \"const fs=require('fs'),cp=require('child_process'),npm=process.platform==='win32'?'npm.cmd':'npm'; for (const w of ['backend','frontend']) if (fs.existsSync(w+'/package.json')) cp.execFileSync(npm,['run','typecheck','--workspace',w,'--if-present'],{stdio:'inherit'});\"",
-    "test": "node -e \"const fs=require('fs'),cp=require('child_process'),npm=process.platform==='win32'?'npm.cmd':'npm'; for (const w of ['backend','frontend']) if (fs.existsSync(w+'/package.json')) cp.execFileSync(npm,['run','test','--workspace',w,'--if-present'],{stdio:'inherit'});\"",
-    "build": "node -e \"const fs=require('fs'),cp=require('child_process'),npm=process.platform==='win32'?'npm.cmd':'npm'; for (const w of ['backend','frontend']) if (fs.existsSync(w+'/package.json')) cp.execFileSync(npm,['run','build','--workspace',w,'--if-present'],{stdio:'inherit'});\""
+    "lint": "npm run lint --workspace backend --if-present && npm run lint --workspace frontend --if-present",
+    "typecheck": "npm run typecheck --workspace backend --if-present && npm run typecheck --workspace frontend --if-present",
+    "test": "npm run test --workspace backend --if-present && npm run test --workspace frontend --if-present",
+    "build": "npm run build --workspace backend --if-present && npm run build --workspace frontend --if-present"
   },
   "engines": {
     "node": ">=22"
