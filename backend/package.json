@@ -1,0 +1,12 @@
+{
+  "name": "@shortlink/backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node -e \"import('./dist/health.js').then((m) => { if (m.health().status !== 'ok') process.exit(1); })\"",
+    "build": "tsc -p tsconfig.json"
+  }
+}
