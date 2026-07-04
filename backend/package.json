@@ -10,8 +10,9 @@
     "db:seed": "node prisma/seed.mjs",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node -e \"import('./dist/health.js').then((m) => { if (m.health().status !== 'ok') process.exit(1); })\"",
-    "build": "npm run db:generate && tsc -p tsconfig.json"
+    "test": "npm run build && node --test test/*.test.mjs",
+    "build": "npm run db:generate && tsc -p tsconfig.json",
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "@prisma/client": "6.19.2",
