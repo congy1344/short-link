@@ -34,6 +34,7 @@ export async function buildApp(config: AppConfig = loadConfig(), deps: AppDeps =
   await app.register(linksRoutes, {
     prisma: deps.prisma ?? prisma,
     redis: deps.redis ?? app.redis,
+    ipHashSecret: config.ipHashSecret,
     ...(deps.codeGenerator ? { codeGenerator: deps.codeGenerator } : {})
   });
 

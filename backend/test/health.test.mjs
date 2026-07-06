@@ -8,6 +8,7 @@ test("GET /healthz returns backend health", async (t) => {
     port: 0,
     databaseUrl: "postgresql://postgres:postgres@localhost:5432/shortlink?schema=public",
     redisUrl: "redis://localhost:6379",
+    ipHashSecret: "test-secret",
     nodeEnv: "test"
   }, {
     redis: {

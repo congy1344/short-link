@@ -1,7 +1,7 @@
-import { randomInt } from "node:crypto";
+import { createHmac, randomInt } from "node:crypto";
 
 import { LinkStatus } from "@prisma/client";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 
 const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const DEFAULT_CODE_LENGTH = 7;
@@ -33,6 +33,16 @@ type RedirectLink = {
   expiresAt: Date | string | null;
 };
 
+type ClickEventInput = {
+  linkId: string;
+  referrerHost: string | null;
+  userAgent: string | null;
+  browser: string | null;
+  os: string | null;
+  device: string | null;
+  ipHash: string | null;
+};
+
 export type LinkDatabase = {
   user: {
     upsert(args: {
@@ -55,6 +65,9 @@ export type LinkDatabase = {
       where: { shortCode: string };
       select: { id: true; destinationUrl: true; status: true; expiresAt: true };
     }): Promise<RedirectLink | null>;
+  };
+  clickEvent: {
+    create(args: { data: ClickEventInput }): Promise<unknown>;
   };
 };
 
@@ -148,6 +161,7 @@ export async function createShortLink(
 export const linksRoutes: FastifyPluginAsync<{
   prisma: LinkDatabase;
   redis: LinkCache;
+  ipHashSecret: string;
   codeGenerator?: CodeGenerator;
 }> = async (app, options) => {
   app.post("/links", async (request, reply) => {
@@ -187,6 +201,8 @@ export const linksRoutes: FastifyPluginAsync<{
     if (link.status !== LinkStatus.ACTIVE || isExpired(link.expiresAt)) {
       return reply.code(410).send({ error: "Short link is inactive" });
     }
+
+    await recordClick(options.prisma, link, request, options.ipHashSecret);
 
     return reply.redirect(link.destinationUrl, 302);
   });
@@ -252,4 +268,84 @@ async function readCachedLink(redis: LinkCache, key: string): Promise<RedirectLi
 
 function isExpired(expiresAt: Date | string | null): boolean {
   return expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
+}
+
+async function recordClick(
+  db: LinkDatabase,
+  link: RedirectLink,
+  request: FastifyRequest,
+  ipHashSecret: string
+): Promise<void> {
+  try {
+    const userAgent = headerValue(request.headers["user-agent"]) ?? null;
+
+    await db.clickEvent.create({
+      data: {
+        linkId: link.id,
+        referrerHost: referrerHost(request),
+        userAgent,
+        browser: browserFromUserAgent(userAgent),
+        os: osFromUserAgent(userAgent),
+        device: deviceFromUserAgent(userAgent),
+        ipHash: request.ip ? hashIp(ipHashSecret, request.ip) : null
+      }
+    });
+  } catch {
+    // ponytail: direct insert for MVP, move to async queue when redirect latency matters.
+  }
+}
+
+function referrerHost(request: FastifyRequest): string | null {
+  const referrer = headerValue(request.headers.referer ?? request.headers.referrer);
+  if (!referrer) {
+    return null;
+  }
+
+  try {
+    return new URL(referrer).host;
+  } catch {
+    return null;
+  }
+}
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function hashIp(secret: string, ip: string): string {
+  return createHmac("sha256", secret).update(ip).digest("hex");
+}
+
+function browserFromUserAgent(userAgent: string | null): string | null {
+  if (!userAgent) {
+    return null;
+  }
+
+  // ponytail: naive UA labels, replace with a parser when dashboard needs accuracy.
+  if (userAgent.includes("Edg/")) return "Edge";
+  if (userAgent.includes("Firefox/")) return "Firefox";
+  if (userAgent.includes("Chrome/")) return "Chrome";
+  if (userAgent.includes("Safari/")) return "Safari";
+  return null;
+}
+
+function osFromUserAgent(userAgent: string | null): string | null {
+  if (!userAgent) {
+    return null;
+  }
+
+  if (userAgent.includes("Windows")) return "Windows";
+  if (userAgent.includes("iPhone") || userAgent.includes("iPad")) return "iOS";
+  if (userAgent.includes("Android")) return "Android";
+  if (userAgent.includes("Mac OS X")) return "macOS";
+  if (userAgent.includes("Linux")) return "Linux";
+  return null;
+}
+
+function deviceFromUserAgent(userAgent: string | null): string | null {
+  if (!userAgent) {
+    return null;
+  }
+
+  return /Mobi|Android|iPhone|iPad/i.test(userAgent) ? "mobile" : "desktop";
 }

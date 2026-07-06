@@ -7,6 +7,7 @@ const config = {
   port: 0,
   databaseUrl: "postgresql://postgres:postgres@localhost:5432/shortlink?schema=public",
   redisUrl: "redis://localhost:6379",
+  ipHashSecret: "test-secret",
   nodeEnv: "test"
 };
 
@@ -101,6 +102,7 @@ test("POST /links rejects invalid URLs", async (t) => {
 
 test("GET /:code redirects and caches link lookup", async (t) => {
   let findCalls = 0;
+  const clickEvents = [];
   const redis = createRedisStub();
   const prisma = {
     user: {
@@ -119,6 +121,12 @@ test("GET /:code redirects and caches link lookup", async (t) => {
           expiresAt: null
         };
       }
+    },
+    clickEvent: {
+      create: async (args) => {
+        clickEvents.push(args.data);
+        return {};
+      }
     }
   };
 
@@ -128,11 +136,61 @@ test("GET /:code redirects and caches link lookup", async (t) => {
     await app.close();
   });
 
-  const first = await app.inject({ method: "GET", url: "/docs101" });
+  const first = await app.inject({
+    method: "GET",
+    url: "/docs101",
+    headers: {
+      referer: "https://github.com/acme/project",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0 Safari/537.36"
+    }
+  });
   const second = await app.inject({ method: "GET", url: "/docs101" });
 
   assert.equal(first.statusCode, 302);
   assert.equal(first.headers.location, "https://example.com/docs");
   assert.equal(second.statusCode, 302);
   assert.equal(findCalls, 1);
+  assert.equal(clickEvents.length, 2);
+  assert.equal(clickEvents[0].linkId, "link_1");
+  assert.equal(clickEvents[0].referrerHost, "github.com");
+  assert.equal(clickEvents[0].browser, "Chrome");
+  assert.equal(clickEvents[0].os, "Windows");
+  assert.equal(clickEvents[0].device, "desktop");
+  assert.match(clickEvents[0].ipHash, /^[a-f0-9]{64}$/);
+});
+
+test("GET /:code redirects when click tracking fails", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: {
+        upsert: async () => ({ id: "unused" })
+      },
+      link: {
+        create: async () => {
+          throw new Error("should not create links during redirect");
+        },
+        findUnique: async () => ({
+          id: "link_1",
+          destinationUrl: "https://example.com/docs",
+          status: "ACTIVE",
+          expiresAt: null
+        })
+      },
+      clickEvent: {
+        create: async () => {
+          throw new Error("analytics down");
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/docs101" });
+
+  assert.equal(response.statusCode, 302);
+  assert.equal(response.headers.location, "https://example.com/docs");
 });
