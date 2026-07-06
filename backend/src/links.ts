@@ -8,6 +8,7 @@ const DEFAULT_CODE_LENGTH = 7;
 const MAX_GENERATED_CODE_ATTEMPTS = 5;
 const DEMO_OWNER_EMAIL = "demo@shortlink.local";
 const ALIAS_PATTERN = /^[A-Za-z0-9_-]{3,32}$/;
+const LINK_CACHE_TTL_SECONDS = 600;
 
 export type CodeGenerator = () => string;
 
@@ -23,6 +24,13 @@ export type CreatedLink = {
   shortCode: string;
   destinationUrl: string;
   title: string | null;
+};
+
+type RedirectLink = {
+  id: string;
+  destinationUrl: string;
+  status: LinkStatus;
+  expiresAt: Date | string | null;
 };
 
 export type LinkDatabase = {
@@ -43,7 +51,16 @@ export type LinkDatabase = {
         title: string | null;
       };
     }): Promise<CreatedLink>;
+    findUnique(args: {
+      where: { shortCode: string };
+      select: { id: true; destinationUrl: true; status: true; expiresAt: true };
+    }): Promise<RedirectLink | null>;
   };
+};
+
+export type LinkCache = {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, options: { EX: number }): Promise<unknown>;
 };
 
 type ParseResult = { ok: true; input: CreateLinkInput } | { ok: false; message: string };
@@ -130,6 +147,7 @@ export async function createShortLink(
 
 export const linksRoutes: FastifyPluginAsync<{
   prisma: LinkDatabase;
+  redis: LinkCache;
   codeGenerator?: CodeGenerator;
 }> = async (app, options) => {
   app.post("/links", async (request, reply) => {
@@ -153,6 +171,24 @@ export const linksRoutes: FastifyPluginAsync<{
 
       throw error;
     }
+  });
+
+  app.get("/:code", async (request, reply) => {
+    const { code } = request.params as { code: string };
+    if (!ALIAS_PATTERN.test(code)) {
+      return reply.code(400).send({ error: "Invalid short code" });
+    }
+
+    const link = await findRedirectLink(options.prisma, options.redis, code);
+    if (!link) {
+      return reply.code(404).send({ error: "Short code not found" });
+    }
+
+    if (link.status !== LinkStatus.ACTIVE || isExpired(link.expiresAt)) {
+      return reply.code(410).send({ error: "Short link is inactive" });
+    }
+
+    return reply.redirect(link.destinationUrl, 302);
   });
 };
 
@@ -180,4 +216,40 @@ function isHttpUrl(value: string): boolean {
 
 function isUniqueConstraintError(error: unknown): boolean {
   return isRecord(error) && error.code === "P2002";
+}
+
+async function findRedirectLink(db: LinkDatabase, redis: LinkCache, code: string): Promise<RedirectLink | null> {
+  const key = `link:${code}`;
+  const cached = await readCachedLink(redis, key);
+  if (cached) {
+    return cached;
+  }
+
+  const link = await db.link.findUnique({
+    where: { shortCode: code },
+    select: { id: true, destinationUrl: true, status: true, expiresAt: true }
+  });
+
+  if (link && link.status === LinkStatus.ACTIVE && !isExpired(link.expiresAt)) {
+    await redis.set(key, JSON.stringify(link), { EX: LINK_CACHE_TTL_SECONDS });
+  }
+
+  return link;
+}
+
+async function readCachedLink(redis: LinkCache, key: string): Promise<RedirectLink | null> {
+  const cached = await redis.get(key);
+  if (!cached) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(cached) as RedirectLink;
+  } catch {
+    return null;
+  }
+}
+
+function isExpired(expiresAt: Date | string | null): boolean {
+  return expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
 }

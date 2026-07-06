@@ -9,6 +9,11 @@ test("GET /healthz returns backend health", async (t) => {
     databaseUrl: "postgresql://postgres:postgres@localhost:5432/shortlink?schema=public",
     redisUrl: "redis://localhost:6379",
     nodeEnv: "test"
+  }, {
+    redis: {
+      get: async () => null,
+      set: async () => "OK"
+    }
   });
 
   t.after(async () => {

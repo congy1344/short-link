@@ -4,13 +4,14 @@ import type { AppConfig } from "./config.js";
 import { loadConfig } from "./config.js";
 import { prisma } from "./db/client.js";
 import { health } from "./health.js";
-import type { CodeGenerator, LinkDatabase } from "./links.js";
+import type { CodeGenerator, LinkCache, LinkDatabase } from "./links.js";
 import { linksRoutes } from "./links.js";
 import { prismaPlugin } from "./plugins/prisma.js";
 import { redisPlugin } from "./plugins/redis.js";
 
 export type AppDeps = {
   prisma?: LinkDatabase;
+  redis?: LinkCache;
   codeGenerator?: CodeGenerator;
 };
 
@@ -26,9 +27,13 @@ export async function buildApp(config: AppConfig = loadConfig(), deps: AppDeps =
     await app.register(prismaPlugin);
   }
 
-  await app.register(redisPlugin, { url: config.redisUrl });
+  if (!deps.redis) {
+    await app.register(redisPlugin, { url: config.redisUrl });
+  }
+
   await app.register(linksRoutes, {
     prisma: deps.prisma ?? prisma,
+    redis: deps.redis ?? app.redis,
     ...(deps.codeGenerator ? { codeGenerator: deps.codeGenerator } : {})
   });
 
