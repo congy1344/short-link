@@ -33,6 +33,17 @@ type RedirectLink = {
   expiresAt: Date | string | null;
 };
 
+type OwnerLink = {
+  id: string;
+  shortCode: string;
+  destinationUrl: string;
+  title: string | null;
+  status: LinkStatus;
+  expiresAt: Date | string | null;
+  createdAt: Date | string;
+  _count: { clickEvents: number };
+};
+
 type ClickEventInput = {
   linkId: string;
   referrerHost: string | null;
@@ -45,6 +56,10 @@ type ClickEventInput = {
 
 export type LinkDatabase = {
   user: {
+    findUnique(args: {
+      where: { email: string };
+      select: { id: true };
+    }): Promise<{ id: string } | null>;
     upsert(args: {
       where: { email: string };
       update: { name: string };
@@ -65,6 +80,20 @@ export type LinkDatabase = {
       where: { shortCode: string };
       select: { id: true; destinationUrl: true; status: true; expiresAt: true };
     }): Promise<RedirectLink | null>;
+    findMany(args: {
+      where: { ownerId: string };
+      orderBy: { createdAt: "desc" };
+      select: {
+        id: true;
+        shortCode: true;
+        destinationUrl: true;
+        title: true;
+        status: true;
+        expiresAt: true;
+        createdAt: true;
+        _count: { select: { clickEvents: true } };
+      };
+    }): Promise<OwnerLink[]>;
   };
   clickEvent: {
     create(args: { data: ClickEventInput }): Promise<unknown>;
@@ -164,6 +193,45 @@ export const linksRoutes: FastifyPluginAsync<{
   ipHashSecret: string;
   codeGenerator?: CodeGenerator;
 }> = async (app, options) => {
+  app.get("/links", async () => {
+    const owner = await options.prisma.user.findUnique({
+      where: { email: DEMO_OWNER_EMAIL },
+      select: { id: true }
+    });
+
+    if (!owner) {
+      return { links: [] };
+    }
+
+    const links = await options.prisma.link.findMany({
+      where: { ownerId: owner.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        shortCode: true,
+        destinationUrl: true,
+        title: true,
+        status: true,
+        expiresAt: true,
+        createdAt: true,
+        _count: { select: { clickEvents: true } }
+      }
+    });
+
+    return {
+      links: links.map((link) => ({
+        id: link.id,
+        shortCode: link.shortCode,
+        destinationUrl: link.destinationUrl,
+        title: link.title,
+        status: link.status,
+        expiresAt: link.expiresAt,
+        createdAt: link.createdAt,
+        totalClicks: link._count.clickEvents
+      }))
+    };
+  });
+
   app.post("/links", async (request, reply) => {
     const parsed = parseCreateLinkBody(request.body);
     if (!parsed.ok) {

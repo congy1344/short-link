@@ -21,6 +21,103 @@ function createRedisStub(seed = new Map()) {
   };
 }
 
+test("GET /links returns demo owner links with click counts", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: {
+        findUnique: async () => ({ id: "user_1" })
+      },
+      link: {
+        findMany: async (args) => {
+          assert.equal(args.where.ownerId, "user_1");
+          assert.deepEqual(args.orderBy, { createdAt: "desc" });
+
+          return [
+            {
+              id: "link_new",
+              shortCode: "new101",
+              destinationUrl: "https://example.com/new",
+              title: "New",
+              status: "ACTIVE",
+              expiresAt: null,
+              createdAt: new Date("2026-07-02T00:00:00.000Z"),
+              _count: { clickEvents: 5 }
+            },
+            {
+              id: "link_old",
+              shortCode: "old101",
+              destinationUrl: "https://example.com/old",
+              title: null,
+              status: "DISABLED",
+              expiresAt: new Date("2026-08-01T00:00:00.000Z"),
+              createdAt: new Date("2026-07-01T00:00:00.000Z"),
+              _count: { clickEvents: 2 }
+            }
+          ];
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/links" });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    links: [
+      {
+        id: "link_new",
+        shortCode: "new101",
+        destinationUrl: "https://example.com/new",
+        title: "New",
+        status: "ACTIVE",
+        expiresAt: null,
+        createdAt: "2026-07-02T00:00:00.000Z",
+        totalClicks: 5
+      },
+      {
+        id: "link_old",
+        shortCode: "old101",
+        destinationUrl: "https://example.com/old",
+        title: null,
+        status: "DISABLED",
+        expiresAt: "2026-08-01T00:00:00.000Z",
+        createdAt: "2026-07-01T00:00:00.000Z",
+        totalClicks: 2
+      }
+    ]
+  });
+});
+
+test("GET /links returns empty list when demo owner is missing", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: {
+        findUnique: async () => null
+      },
+      link: {
+        findMany: async () => {
+          throw new Error("should not query links without owner");
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/links" });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { links: [] });
+});
+
 test("POST /links retries when generated code collides", async (t) => {
   let createCalls = 0;
   const codes = ["taken01", "fresh01"];
