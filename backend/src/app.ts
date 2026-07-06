@@ -31,8 +31,9 @@ export async function buildApp(config: AppConfig = loadConfig(), deps: AppDeps =
     await app.register(redisPlugin, { url: config.redisUrl });
   }
 
+  const db = (deps.prisma ?? prisma) as LinkDatabase;
   await app.register(linksRoutes, {
-    prisma: deps.prisma ?? prisma,
+    prisma: db,
     redis: deps.redis ?? app.redis,
     ipHashSecret: config.ipHashSecret,
     ...(deps.codeGenerator ? { codeGenerator: deps.codeGenerator } : {})

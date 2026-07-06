@@ -54,6 +54,13 @@ type ClickEventInput = {
   ipHash: string | null;
 };
 
+type ClickStatsEvent = {
+  clickedAt: Date | string;
+  referrerHost: string | null;
+  browser: string | null;
+  ipHash: string | null;
+};
+
 export type LinkDatabase = {
   user: {
     findUnique(args: {
@@ -80,6 +87,10 @@ export type LinkDatabase = {
       where: { shortCode: string };
       select: { id: true; destinationUrl: true; status: true; expiresAt: true };
     }): Promise<RedirectLink | null>;
+    findUnique(args: {
+      where: { id: string };
+      select: { id: true };
+    }): Promise<{ id: string } | null>;
     findMany(args: {
       where: { ownerId: string };
       orderBy: { createdAt: "desc" };
@@ -97,6 +108,10 @@ export type LinkDatabase = {
   };
   clickEvent: {
     create(args: { data: ClickEventInput }): Promise<unknown>;
+    findMany(args: {
+      where: { linkId: string; clickedAt: { gte: Date } };
+      select: { clickedAt: true; referrerHost: true; browser: true; ipHash: true };
+    }): Promise<ClickStatsEvent[]>;
   };
 };
 
@@ -255,6 +270,32 @@ export const linksRoutes: FastifyPluginAsync<{
     }
   });
 
+  app.get("/links/:id/stats", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const days = parseDays((request.query as { days?: string }).days);
+    if (!days) {
+      return reply.code(400).send({ error: "days must be an integer from 1 to 90" });
+    }
+
+    const link = await options.prisma.link.findUnique({
+      where: { id },
+      select: { id: true }
+    });
+    if (!link) {
+      return reply.code(404).send({ error: "Link not found" });
+    }
+
+    const events = await options.prisma.clickEvent.findMany({
+      where: {
+        linkId: id,
+        clickedAt: { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) }
+      },
+      select: { clickedAt: true, referrerHost: true, browser: true, ipHash: true }
+    });
+
+    return buildStats(events);
+  });
+
   app.get("/:code", async (request, reply) => {
     const { code } = request.params as { code: string };
     if (!ALIAS_PATTERN.test(code)) {
@@ -336,6 +377,54 @@ async function readCachedLink(redis: LinkCache, key: string): Promise<RedirectLi
 
 function isExpired(expiresAt: Date | string | null): boolean {
   return expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
+}
+
+function parseDays(value: string | undefined): number | null {
+  if (value === undefined) {
+    return 30;
+  }
+
+  if (!/^\d+$/.test(value)) {
+    return null;
+  }
+
+  const days = Number(value);
+  return days >= 1 && days <= 90 ? days : null;
+}
+
+function buildStats(events: ClickStatsEvent[]) {
+  const byDay = new Map<string, number>();
+  const referrers = new Map<string, number>();
+  const userAgents = new Map<string, number>();
+  const visitors = new Set<string>();
+
+  for (const event of events) {
+    increment(byDay, new Date(event.clickedAt).toISOString().slice(0, 10));
+    increment(referrers, cleanOptionalString(event.referrerHost) ?? "direct");
+    increment(userAgents, cleanOptionalString(event.browser) ?? "Unknown");
+
+    if (event.ipHash) {
+      visitors.add(event.ipHash);
+    }
+  }
+
+  return {
+    totalClicks: events.length,
+    uniqueVisitors: visitors.size,
+    clicksByDay: [...byDay.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([day, clicks]) => ({ day, clicks })),
+    topReferrers: topEntries(referrers).map(([referrer, clicks]) => ({ referrer, clicks })),
+    topUserAgents: topEntries(userAgents).map(([userAgent, clicks]) => ({ userAgent, clicks }))
+  };
+}
+
+function increment(map: Map<string, number>, key: string): void {
+  map.set(key, (map.get(key) ?? 0) + 1);
+}
+
+function topEntries(map: Map<string, number>): Array<[string, number]> {
+  return [...map.entries()].sort(([a, aCount], [b, bCount]) => bCount - aCount || a.localeCompare(b)).slice(0, 5);
 }
 
 async function recordClick(

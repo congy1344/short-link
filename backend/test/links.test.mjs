@@ -118,6 +118,125 @@ test("GET /links returns empty list when demo owner is missing", async (t) => {
   assert.deepEqual(response.json(), { links: [] });
 });
 
+test("GET /links/:id/stats returns aggregate click stats", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: {
+        findUnique: async () => ({ id: "unused" })
+      },
+      link: {
+        findUnique: async (args) => {
+          assert.deepEqual(args.where, { id: "link_1" });
+          return { id: "link_1" };
+        }
+      },
+      clickEvent: {
+        findMany: async (args) => {
+          assert.equal(args.where.linkId, "link_1");
+          assert.ok(args.where.clickedAt.gte instanceof Date);
+
+          return [
+            {
+              clickedAt: new Date("2026-07-01T09:00:00.000Z"),
+              referrerHost: "github.com",
+              browser: "Chrome",
+              ipHash: "ip_1"
+            },
+            {
+              clickedAt: new Date("2026-07-01T10:00:00.000Z"),
+              referrerHost: null,
+              browser: "Chrome",
+              ipHash: "ip_1"
+            },
+            {
+              clickedAt: new Date("2026-07-02T10:00:00.000Z"),
+              referrerHost: "",
+              browser: null,
+              ipHash: "ip_2"
+            }
+          ];
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/links/link_1/stats?days=7" });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    totalClicks: 3,
+    uniqueVisitors: 2,
+    clicksByDay: [
+      { day: "2026-07-01", clicks: 2 },
+      { day: "2026-07-02", clicks: 1 }
+    ],
+    topReferrers: [
+      { referrer: "direct", clicks: 2 },
+      { referrer: "github.com", clicks: 1 }
+    ],
+    topUserAgents: [
+      { userAgent: "Chrome", clicks: 2 },
+      { userAgent: "Unknown", clicks: 1 }
+    ]
+  });
+});
+
+test("GET /links/:id/stats rejects invalid days", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: {
+        findUnique: async () => ({ id: "unused" })
+      },
+      link: {
+        findUnique: async () => {
+          throw new Error("should not query link when days is invalid");
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/links/link_1/stats?days=91" });
+
+  assert.equal(response.statusCode, 400);
+});
+
+test("GET /links/:id/stats returns 404 for missing links", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: {
+        findUnique: async () => ({ id: "unused" })
+      },
+      link: {
+        findUnique: async () => null
+      },
+      clickEvent: {
+        findMany: async () => {
+          throw new Error("should not query click events for missing links");
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/links/missing/stats" });
+
+  assert.equal(response.statusCode, 404);
+});
+
 test("POST /links retries when generated code collides", async (t) => {
   let createCalls = 0;
   const codes = ["taken01", "fresh01"];
