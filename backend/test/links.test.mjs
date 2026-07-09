@@ -153,18 +153,21 @@ test("GET /links/:id/stats returns aggregate click stats", async (t) => {
               clickedAt: new Date("2026-07-01T09:00:00.000Z"),
               referrerHost: "github.com",
               browser: "Chrome",
+              device: "desktop",
               ipHash: "ip_1"
             },
             {
               clickedAt: new Date("2026-07-01T10:00:00.000Z"),
               referrerHost: null,
               browser: "Chrome",
+              device: "mobile",
               ipHash: "ip_1"
             },
             {
               clickedAt: new Date("2026-07-02T10:00:00.000Z"),
               referrerHost: "",
               browser: null,
+              device: null,
               ipHash: "ip_2"
             }
           ];
@@ -194,6 +197,11 @@ test("GET /links/:id/stats returns aggregate click stats", async (t) => {
     topUserAgents: [
       { userAgent: "Chrome", clicks: 2 },
       { userAgent: "Unknown", clicks: 1 }
+    ],
+    topDevices: [
+      { device: "desktop", clicks: 1 },
+      { device: "mobile", clicks: 1 },
+      { device: "Unknown", clicks: 1 }
     ]
   });
 });

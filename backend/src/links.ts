@@ -66,6 +66,7 @@ type ClickStatsEvent = {
   clickedAt: Date | string;
   referrerHost: string | null;
   browser: string | null;
+  device: string | null;
   ipHash: string | null;
 };
 
@@ -118,7 +119,7 @@ export type LinkDatabase = {
     create(args: { data: ClickEventInput }): Promise<unknown>;
     findMany(args: {
       where: { linkId: string; clickedAt: { gte: Date } };
-      select: { clickedAt: true; referrerHost: true; browser: true; ipHash: true };
+      select: { clickedAt: true; referrerHost: true; browser: true; device: true; ipHash: true };
     }): Promise<ClickStatsEvent[]>;
   };
 };
@@ -303,7 +304,7 @@ export const linksRoutes: FastifyPluginAsync<{
         linkId: id,
         clickedAt: { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) }
       },
-      select: { clickedAt: true, referrerHost: true, browser: true, ipHash: true }
+      select: { clickedAt: true, referrerHost: true, browser: true, device: true, ipHash: true }
     });
 
     return buildStats(events);
@@ -427,12 +428,14 @@ function buildStats(events: ClickStatsEvent[]) {
   const byDay = new Map<string, number>();
   const referrers = new Map<string, number>();
   const userAgents = new Map<string, number>();
+  const devices = new Map<string, number>();
   const visitors = new Set<string>();
 
   for (const event of events) {
     increment(byDay, new Date(event.clickedAt).toISOString().slice(0, 10));
     increment(referrers, cleanOptionalString(event.referrerHost) ?? "direct");
     increment(userAgents, cleanOptionalString(event.browser) ?? "Unknown");
+    increment(devices, cleanOptionalString(event.device) ?? "Unknown");
 
     if (event.ipHash) {
       visitors.add(event.ipHash);
@@ -446,7 +449,8 @@ function buildStats(events: ClickStatsEvent[]) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([day, clicks]) => ({ day, clicks })),
     topReferrers: topEntries(referrers).map(([referrer, clicks]) => ({ referrer, clicks })),
-    topUserAgents: topEntries(userAgents).map(([userAgent, clicks]) => ({ userAgent, clicks }))
+    topUserAgents: topEntries(userAgents).map(([userAgent, clicks]) => ({ userAgent, clicks })),
+    topDevices: topEntries(devices).map(([device, clicks]) => ({ device, clicks }))
   };
 }
 
