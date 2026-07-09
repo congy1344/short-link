@@ -11,12 +11,24 @@ const config = {
   nodeEnv: "test"
 };
 
-function createRedisStub(seed = new Map()) {
+function createRedisStub(seed = new Map(), options = {}) {
+  const counters = new Map();
+
   return {
     get: async (key) => seed.get(key) ?? null,
     set: async (key, value) => {
       seed.set(key, value);
       return "OK";
+    },
+    eval: async (_script, commandOptions) => {
+      if (Object.hasOwn(options, "evalResult")) {
+        return options.evalResult;
+      }
+
+      const key = commandOptions.keys[0];
+      const count = (counters.get(key) ?? 0) + 1;
+      counters.set(key, count);
+      return count;
     }
   };
 }
@@ -316,6 +328,56 @@ test("POST /links rejects invalid URLs", async (t) => {
   assert.equal(response.statusCode, 400);
 });
 
+test("POST /links returns 429 after create rate limit", async (t) => {
+  let createCalls = 0;
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: {
+        upsert: async () => ({ id: "user_1" })
+      },
+      link: {
+        create: async (args) => {
+          createCalls += 1;
+          return {
+            id: `link_${createCalls}`,
+            shortCode: args.data.shortCode,
+            destinationUrl: args.data.destinationUrl,
+            title: args.data.title
+          };
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const payload = JSON.stringify({ destinationUrl: "https://example.com/docs" });
+  for (let index = 0; index < 20; index += 1) {
+    const response = await app.inject({
+      method: "POST",
+      url: "/links",
+      headers: { "content-type": "application/json" },
+      payload
+    });
+    assert.equal(response.statusCode, 201);
+  }
+
+  const limited = await app.inject({
+    method: "POST",
+    url: "/links",
+    headers: { "content-type": "application/json" },
+    payload
+  });
+
+  assert.equal(limited.statusCode, 429);
+  assert.equal(limited.headers["retry-after"], "60");
+  assert.deepEqual(limited.json(), { error: "Rate limit exceeded" });
+  assert.equal(createCalls, 20);
+});
+
 test("GET /:code redirects and caches link lookup", async (t) => {
   let findCalls = 0;
   const clickEvents = [];
@@ -409,4 +471,105 @@ test("GET /:code redirects when click tracking fails", async (t) => {
 
   assert.equal(response.statusCode, 302);
   assert.equal(response.headers.location, "https://example.com/docs");
+});
+
+test("GET /:code returns 429 after redirect rate limit", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(new Map(), { evalResult: 601 }),
+    prisma: {
+      user: {
+        upsert: async () => ({ id: "unused" })
+      },
+      link: {
+        create: async () => {
+          throw new Error("should not create links during redirect");
+        },
+        findUnique: async () => {
+          throw new Error("should not query link after rate limit");
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/docs101" });
+
+  assert.equal(response.statusCode, 429);
+  assert.equal(response.headers["retry-after"], "60");
+  assert.deepEqual(response.json(), { error: "Rate limit exceeded" });
+});
+
+test("GET /:code returns 410 for disabled links", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: {
+        upsert: async () => ({ id: "unused" })
+      },
+      link: {
+        create: async () => {
+          throw new Error("should not create links during redirect");
+        },
+        findUnique: async () => ({
+          id: "link_1",
+          destinationUrl: "https://example.com/docs",
+          status: "DISABLED",
+          expiresAt: null
+        })
+      },
+      clickEvent: {
+        create: async () => {
+          throw new Error("should not track inactive links");
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/docs101" });
+
+  assert.equal(response.statusCode, 410);
+  assert.deepEqual(response.json(), { error: "Short link is inactive" });
+});
+
+test("GET /:code returns 410 for expired links", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: {
+        upsert: async () => ({ id: "unused" })
+      },
+      link: {
+        create: async () => {
+          throw new Error("should not create links during redirect");
+        },
+        findUnique: async () => ({
+          id: "link_1",
+          destinationUrl: "https://example.com/docs",
+          status: "ACTIVE",
+          expiresAt: new Date("2020-01-01T00:00:00.000Z")
+        })
+      },
+      clickEvent: {
+        create: async () => {
+          throw new Error("should not track inactive links");
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/docs101" });
+
+  assert.equal(response.statusCode, 410);
+  assert.deepEqual(response.json(), { error: "Short link is inactive" });
 });

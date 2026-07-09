@@ -1,7 +1,7 @@
 import { createHmac, randomInt } from "node:crypto";
 
 import { LinkStatus } from "@prisma/client";
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 
 const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const DEFAULT_CODE_LENGTH = 7;
@@ -9,6 +9,14 @@ const MAX_GENERATED_CODE_ATTEMPTS = 5;
 const DEMO_OWNER_EMAIL = "demo@shortlink.local";
 const ALIAS_PATTERN = /^[A-Za-z0-9_-]{3,32}$/;
 const LINK_CACHE_TTL_SECONDS = 600;
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+const CREATE_LINK_RATE_LIMIT = 20;
+const REDIRECT_RATE_LIMIT = 600;
+const RATE_LIMIT_SCRIPT = `
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then redis.call("EXPIRE", KEYS[1], ARGV[1]) end
+return count
+`;
 
 export type CodeGenerator = () => string;
 
@@ -118,6 +126,7 @@ export type LinkDatabase = {
 export type LinkCache = {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options: { EX: number }): Promise<unknown>;
+  eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown>;
 };
 
 type ParseResult = { ok: true; input: CreateLinkInput } | { ok: false; message: string };
@@ -248,6 +257,10 @@ export const linksRoutes: FastifyPluginAsync<{
   });
 
   app.post("/links", async (request, reply) => {
+    if (await isRateLimited(options.redis, "create", request.ip, CREATE_LINK_RATE_LIMIT)) {
+      return rateLimitExceeded(reply);
+    }
+
     const parsed = parseCreateLinkBody(request.body);
     if (!parsed.ok) {
       return reply.code(400).send({ error: parsed.message });
@@ -302,6 +315,10 @@ export const linksRoutes: FastifyPluginAsync<{
       return reply.code(400).send({ error: "Invalid short code" });
     }
 
+    if (await isRateLimited(options.redis, "redirect", request.ip, REDIRECT_RATE_LIMIT)) {
+      return rateLimitExceeded(reply);
+    }
+
     const link = await findRedirectLink(options.prisma, options.redis, code);
     if (!link) {
       return reply.code(404).send({ error: "Short code not found" });
@@ -341,6 +358,20 @@ function isHttpUrl(value: string): boolean {
 
 function isUniqueConstraintError(error: unknown): boolean {
   return isRecord(error) && error.code === "P2002";
+}
+
+async function isRateLimited(redis: LinkCache, scope: string, ip: string, limit: number): Promise<boolean> {
+  const windowId = Math.floor(Date.now() / (RATE_LIMIT_WINDOW_SECONDS * 1000));
+  const count = await redis.eval(RATE_LIMIT_SCRIPT, {
+    keys: [`rl:${scope}:${ip}:${windowId}`],
+    arguments: [String(RATE_LIMIT_WINDOW_SECONDS)]
+  });
+
+  return Number(count) > limit;
+}
+
+function rateLimitExceeded(reply: FastifyReply) {
+  return reply.header("Retry-After", String(RATE_LIMIT_WINDOW_SECONDS)).code(429).send({ error: "Rate limit exceeded" });
 }
 
 async function findRedirectLink(db: LinkDatabase, redis: LinkCache, code: string): Promise<RedirectLink | null> {
