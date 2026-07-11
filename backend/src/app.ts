@@ -17,18 +17,19 @@ export type AppDeps = {
 
 export async function buildApp(config: AppConfig = loadConfig(), deps: AppDeps = {}) {
   const app = Fastify({
-    logger: config.nodeEnv !== "test"
+    logger: config.nodeEnv !== "test",
+    trustProxy: config.trustedProxy
   });
 
   app.decorate("config", config);
   if (deps.prisma) {
     app.decorate("prisma", deps.prisma);
   } else {
-    await app.register(prismaPlugin);
+    await prismaPlugin(app, {});
   }
 
   if (!deps.redis) {
-    await app.register(redisPlugin, { url: config.redisUrl });
+    await redisPlugin(app, { url: config.redisUrl });
   }
 
   const db = (deps.prisma ?? prisma) as LinkDatabase;
