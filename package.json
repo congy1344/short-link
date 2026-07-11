@@ -1,0 +1,29 @@
+{
+  "name": "shortlink",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "lint": "npm run lint --workspace backend --if-present && npm run lint --workspace frontend --if-present",
+    "typecheck": "npm run typecheck --workspace backend --if-present && npm run typecheck --workspace frontend --if-present",
+    "test": "npm run test --workspace backend --if-present && npm run test --workspace frontend --if-present",
+    "build": "npm run build --workspace backend --if-present && npm run build --workspace frontend --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.2"
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  }
+}
