@@ -1,11 +1,13 @@
+"use client";
+
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
-import { createLink, getLinkStats, listLinks, type LinkStats, type LinkStatus, type LinkSummary } from "./api";
+import { createLink, getLinkStats, listLinks, type LinkStats, type LinkStatus, type LinkSummary } from "../api";
 
 type StatusFilter = "ALL" | LinkStatus;
 type BreakdownItem = { label: string; clicks: number };
 
-export function App() {
+export default function Page() {
   const [links, setLinks] = useState<LinkSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [stats, setStats] = useState<LinkStats | null>(null);

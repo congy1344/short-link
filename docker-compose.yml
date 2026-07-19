@@ -44,10 +44,12 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    environment:
+      API_INTERNAL_ORIGIN: http://api:4000
     depends_on:
       - api
     ports:
-      - "${WEB_PORT:-3000}:80"
+      - "${WEB_PORT:-3000}:3000"
 
 volumes:
   postgres_data:
