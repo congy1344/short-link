@@ -39,6 +39,21 @@ test("GET /healthz returns backend health", async (t) => {
   });
 });
 
+test("GET /healthz includes security headers", async (t) => {
+  const app = await buildApp(config, { redis: createRedisStub() });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "GET", url: "/healthz" });
+
+  assert.equal(response.headers["x-content-type-options"], "nosniff");
+  assert.equal(response.headers["x-frame-options"], "DENY");
+  assert.equal(response.headers["referrer-policy"], "no-referrer");
+  assert.equal(response.headers["permissions-policy"], "camera=(), geolocation=(), microphone=()");
+});
+
 test("GET /readyz returns readiness checks", async (t) => {
   const app = await buildApp(config, {
     prisma: {

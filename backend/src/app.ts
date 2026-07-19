@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyReply } from "fastify";
 
 import type { AppConfig } from "./config.js";
 import { loadConfig } from "./config.js";
@@ -22,6 +22,10 @@ export async function buildApp(config: AppConfig = loadConfig(), deps: AppDeps =
   });
 
   app.decorate("config", config);
+  app.addHook("onRequest", async (_request, reply) => {
+    setSecurityHeaders(reply);
+  });
+
   if (deps.prisma) {
     app.decorate("prisma", deps.prisma);
   } else {
@@ -47,4 +51,12 @@ export async function buildApp(config: AppConfig = loadConfig(), deps: AppDeps =
   });
 
   return app;
+}
+
+function setSecurityHeaders(reply: FastifyReply): void {
+  reply
+    .header("X-Content-Type-Options", "nosniff")
+    .header("X-Frame-Options", "DENY")
+    .header("Referrer-Policy", "no-referrer")
+    .header("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
 }
