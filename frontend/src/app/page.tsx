@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { createLink, getLinkStats, listLinks, type LinkStats, type LinkStatus, type LinkSummary } from "../api";
 
@@ -109,6 +109,7 @@ export default function Page() {
   const totalClicks = links.reduce((sum, link) => sum + link.totalClicks, 0);
   const activeLinks = links.filter((link) => link.status === "ACTIVE").length;
   const topReferrer = stats?.topReferrers[0]?.referrer ?? "-";
+  const shownLinks = filteredLinks.length;
 
   async function reloadLinks(nextSelectedId?: string) {
     const nextLinks = await listLinks();
@@ -153,23 +154,29 @@ export default function Page() {
 
   return (
     <main className="app-shell">
-      <aside className="sidebar" aria-label="Main navigation">
-        <strong>Shortlink</strong>
+      <header className="top-nav">
+        <a className="brand" href="/">
+          <span className="brand-mark" aria-hidden="true">
+            S
+          </span>
+          <span>Shortlink</span>
+        </a>
         <nav>
-          <a className="nav-active" href="/">
+          <a className="nav-active" href="#links-title">
             Links
           </a>
-          <a href="/">Analytics</a>
-          <a href="/">Settings</a>
+          <a href="#detail-title">Analytics</a>
+          <a href="#create-title">Create</a>
         </nav>
-      </aside>
+      </header>
+
       <section className="content">
-        <header className="topbar">
+        <header className="hero">
           <div>
-            <p className="eyebrow">Dashboard</p>
-            <h1>Link analytics</h1>
+            <p className="eyebrow">Demo workspace</p>
+            <h1>Shortlink console</h1>
           </div>
-          <button form="create-link-form" type="submit" disabled={isSubmitting}>
+          <button className="primary-action" form="create-link-form" type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Creating" : "Create link"}
           </button>
         </header>
@@ -192,7 +199,10 @@ export default function Page() {
         <section className="dashboard-grid">
           <section className="panel create-panel" aria-labelledby="create-title">
             <div className="panel-header">
-              <h2 id="create-title">Create link</h2>
+              <div>
+                <p className="section-kicker">New short link</p>
+                <h2 id="create-title">Create link</h2>
+              </div>
             </div>
             <form className="create-form" id="create-link-form" onSubmit={handleCreate}>
               <label>
@@ -221,7 +231,10 @@ export default function Page() {
 
           <section className="panel links-panel" aria-labelledby="links-title">
             <div className="panel-header table-tools">
-              <h2 id="links-title">Links</h2>
+              <div>
+                <p className="section-kicker">Library</p>
+                <h2 id="links-title">Links</h2>
+              </div>
               <div className="controls">
                 <input
                   aria-label="Search links"
@@ -241,8 +254,15 @@ export default function Page() {
                 </select>
               </div>
             </div>
+            <p className="table-summary">{isLoadingLinks ? "Syncing links" : `${formatNumber(shownLinks)} links shown`}</p>
 
-            {isLoadingLinks ? <p className="muted">Loading links...</p> : null}
+            {isLoadingLinks ? (
+              <div className="skeleton-table" aria-label="Loading links">
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : null}
             {!isLoadingLinks && filteredLinks.length === 0 ? <p className="empty-state">No links found.</p> : null}
             {filteredLinks.length > 0 ? (
               <div className="table-wrap">
@@ -285,6 +305,7 @@ export default function Page() {
           <section className="panel detail-panel" aria-labelledby="detail-title">
             <div className="panel-header">
               <div>
+                <p className="section-kicker">Last 30 days</p>
                 <h2 id="detail-title">{selectedLink?.title || selectedLink?.shortCode || "Link detail"}</h2>
                 {selectedLink ? <p className="muted destination-line">{selectedLink.destinationUrl}</p> : null}
               </div>
@@ -292,7 +313,7 @@ export default function Page() {
             </div>
 
             {!selectedLink ? <p className="empty-state">Create or select a link.</p> : null}
-            {selectedLink && isLoadingStats ? <p className="muted">Loading analytics...</p> : null}
+            {selectedLink && isLoadingStats ? <div className="skeleton-chart" aria-label="Loading analytics" /> : null}
             {selectedLink && stats ? (
               <>
                 <div className="stat-strip" aria-label="Selected link metrics">
@@ -380,7 +401,7 @@ function Breakdown({ title, items }: { title: string; items: BreakdownItem[] }) 
             <strong>{formatNumber(item.clicks)}</strong>
           </div>
           <div className="bar-track" aria-hidden="true">
-            <span style={{ width: `${Math.max(6, (item.clicks / max) * 100)}%` }} />
+            <span style={{ "--bar-width": `${Math.max(6, (item.clicks / max) * 100)}%` } as CSSProperties} />
           </div>
         </div>
       ))}
