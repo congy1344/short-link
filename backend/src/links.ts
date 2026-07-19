@@ -128,6 +128,7 @@ export type LinkCache = {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options: { EX: number }): Promise<unknown>;
   eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown>;
+  ping(): Promise<unknown>;
 };
 
 type ParseResult = { ok: true; input: CreateLinkInput } | { ok: false; message: string };

@@ -3,7 +3,7 @@ import Fastify from "fastify";
 import type { AppConfig } from "./config.js";
 import { loadConfig } from "./config.js";
 import { prisma } from "./db/client.js";
-import { health } from "./health.js";
+import { health, readiness, type ReadinessCache, type ReadinessDatabase } from "./health.js";
 import type { CodeGenerator, LinkCache, LinkDatabase } from "./links.js";
 import { linksRoutes } from "./links.js";
 import { prismaPlugin } from "./plugins/prisma.js";
@@ -41,6 +41,10 @@ export async function buildApp(config: AppConfig = loadConfig(), deps: AppDeps =
   });
 
   app.get("/healthz", async () => health());
+  app.get("/readyz", async (_request, reply) => {
+    const result = await readiness((deps.prisma ?? prisma) as ReadinessDatabase, (deps.redis ?? app.redis) as ReadinessCache);
+    return result.status === "ok" ? result : reply.code(503).send(result);
+  });
 
   return app;
 }
