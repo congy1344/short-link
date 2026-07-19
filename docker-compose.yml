@@ -21,6 +21,18 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["npm", "run", "db:deploy"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shortlink}:${POSTGRES_PASSWORD:-shortlink}@postgres:5432/${POSTGRES_DB:-shortlink}?schema=public
+      NODE_ENV: ${NODE_ENV:-development}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -33,6 +45,8 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       TRUSTED_PROXY: 172.30.0.0/24
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
