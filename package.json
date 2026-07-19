@@ -10,7 +10,8 @@
     "lint": "npm run lint --workspace backend --if-present && npm run lint --workspace frontend --if-present",
     "typecheck": "npm run typecheck --workspace backend --if-present && npm run typecheck --workspace frontend --if-present",
     "test": "npm run test --workspace backend --if-present && npm run test --workspace frontend --if-present",
-    "build": "npm run build --workspace backend --if-present && npm run build --workspace frontend --if-present"
+    "build": "npm run build --workspace backend --if-present && npm run build --workspace frontend --if-present",
+    "smoke": "node scripts/smoke.mjs"
   },
   "engines": {
     "node": ">=22"
