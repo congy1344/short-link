@@ -2,6 +2,9 @@ FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 
+ARG API_INTERNAL_ORIGIN=http://api:4000
+ENV API_INTERNAL_ORIGIN=$API_INTERNAL_ORIGIN
+
 COPY package.json package-lock.json ./
 COPY backend/package.json backend/package.json
 COPY frontend/package.json frontend/package.json

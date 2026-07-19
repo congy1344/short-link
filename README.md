@@ -16,13 +16,7 @@ Start the stack:
 docker compose up --build
 ```
 
-The `migrate` service runs Prisma migrations before the API starts. The dashboard is available at `http://localhost:3000`, the API health check is at `http://localhost:4000/healthz`, and readiness is at `http://localhost:4000/readyz`.
-
-Seed demo data after the database is migrated:
-
-```bash
-docker compose run --rm api npm run db:seed
-```
+The `migrate` and `seed` services prepare demo data before the API starts. The dashboard is available at `http://localhost:3000`, the API health check is at `http://localhost:4000/healthz`, and readiness is at `http://localhost:4000/readyz`.
 
 ## Local Node
 
