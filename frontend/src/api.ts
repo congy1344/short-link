@@ -44,6 +44,14 @@ export async function getLinkStats(id: string): Promise<LinkStats> {
   return request<LinkStats>(`/links/${encodeURIComponent(id)}/stats?days=30`);
 }
 
+export async function updateLink(id: string, input: { status?: LinkStatus; expiresAt?: string | null }): Promise<void> {
+  await request(`/links/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+}
+
 export async function createLink(input: CreateLinkInput): Promise<CreatedLink> {
   return request<CreatedLink>("/links", {
     method: "POST",

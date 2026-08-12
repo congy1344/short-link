@@ -2,7 +2,7 @@
 
 import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from "react";
 
-import { createLink, getLinkStats, listLinks, type LinkStats, type LinkStatus, type LinkSummary } from "../api";
+import { createLink, getLinkStats, listLinks, updateLink, type LinkStats, type LinkStatus, type LinkSummary } from "../api";
 
 type StatusFilter = "ALL" | LinkStatus;
 type BreakdownItem = { label: string; clicks: number };
@@ -19,6 +19,7 @@ export default function Page() {
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -115,6 +116,20 @@ export default function Page() {
     const nextLinks = await listLinks();
     setLinks(nextLinks);
     setSelectedId(nextSelectedId ?? selectedId ?? nextLinks[0]?.id);
+  }
+
+  async function toggleStatus(link: LinkSummary) {
+    setPendingId(link.id);
+
+    try {
+      await updateLink(link.id, { status: link.status === "ACTIVE" ? "DISABLED" : "ACTIVE" });
+      await reloadLinks(link.id);
+      setError(null);
+    } catch (toggleError) {
+      setError(errorMessage(toggleError));
+    } finally {
+      setPendingId(null);
+    }
   }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
@@ -274,6 +289,7 @@ export default function Page() {
                       <th>Clicks</th>
                       <th>Status</th>
                       <th>Created</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -294,6 +310,16 @@ export default function Page() {
                           <span className={`status-badge status-${link.status.toLowerCase()}`}>{link.status.toLowerCase()}</span>
                         </td>
                         <td data-label="Created">{formatDate(link.createdAt)}</td>
+                        <td data-label="Actions">
+                          <button
+                            className="text-button"
+                            disabled={pendingId === link.id}
+                            onClick={() => void toggleStatus(link)}
+                            type="button"
+                          >
+                            {link.status === "ACTIVE" ? "Disable" : "Enable"}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

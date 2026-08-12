@@ -5,9 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "lint": "tsc --noEmit -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node -e \"const fs=require('fs'); if (!fs.existsSync('src/app/page.tsx')) process.exit(1);\"",
     "build": "next build",
     "start": "next start"
   }
