@@ -20,6 +20,7 @@ function createRedisStub(seed = new Map(), options = {}) {
       seed.set(key, value);
       return "OK";
     },
+    del: async (key) => (seed.delete(key) ? 1 : 0),
     eval: async (_script, commandOptions) => {
       if (Object.hasOwn(options, "evalResult")) {
         return options.evalResult;
@@ -580,4 +581,144 @@ test("GET /:code returns 410 for expired links", async (t) => {
 
   assert.equal(response.statusCode, 410);
   assert.deepEqual(response.json(), { error: "Short link is inactive" });
+});
+
+test("PATCH /links/:id disables a link and drops its cached redirect", async (t) => {
+  const cache = new Map([["link:docs101", JSON.stringify({ id: "link_1", destinationUrl: "https://example.com/docs", status: "ACTIVE", expiresAt: null })]]);
+  const redis = createRedisStub(cache);
+  let updateArgs;
+
+  const app = await buildApp(config, {
+    redis,
+    prisma: {
+      user: { upsert: async () => ({ id: "unused" }) },
+      link: {
+        update: async (args) => {
+          updateArgs = args;
+          return {
+            id: "link_1",
+            shortCode: "docs101",
+            destinationUrl: "https://example.com/docs",
+            title: "Product docs",
+            status: "DISABLED",
+            expiresAt: null
+          };
+        },
+        findUnique: async () => {
+          throw new Error("disabled link must not be served from cache");
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "PATCH",
+    url: "/links/link_1",
+    payload: { status: "DISABLED" }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().status, "DISABLED");
+  assert.deepEqual(updateArgs.where, { id: "link_1" });
+  assert.deepEqual(updateArgs.data, { status: "DISABLED" });
+  assert.equal(cache.has("link:docs101"), false, "stale ACTIVE entry must be evicted");
+});
+
+test("PATCH /links/:id accepts and clears expiresAt", async (t) => {
+  const captured = [];
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: { upsert: async () => ({ id: "unused" }) },
+      link: {
+        update: async (args) => {
+          captured.push(args.data);
+          return {
+            id: "link_1",
+            shortCode: "docs101",
+            destinationUrl: "https://example.com/docs",
+            title: null,
+            status: "ACTIVE",
+            expiresAt: args.data.expiresAt ?? null
+          };
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const set = await app.inject({
+    method: "PATCH",
+    url: "/links/link_1",
+    payload: { expiresAt: "2027-01-01T00:00:00.000Z" }
+  });
+  const cleared = await app.inject({
+    method: "PATCH",
+    url: "/links/link_1",
+    payload: { expiresAt: null }
+  });
+
+  assert.equal(set.statusCode, 200);
+  assert.equal(cleared.statusCode, 200);
+  assert.deepEqual(captured[0].expiresAt, new Date("2027-01-01T00:00:00.000Z"));
+  assert.equal(captured[1].expiresAt, null);
+});
+
+test("PATCH /links/:id rejects bad input without touching the database", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: { upsert: async () => ({ id: "unused" }) },
+      link: {
+        update: async () => {
+          throw new Error("must not update on invalid input");
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const badStatus = await app.inject({ method: "PATCH", url: "/links/link_1", payload: { status: "NOPE" } });
+  const badDate = await app.inject({ method: "PATCH", url: "/links/link_1", payload: { expiresAt: "not-a-date" } });
+  const empty = await app.inject({ method: "PATCH", url: "/links/link_1", payload: {} });
+
+  assert.equal(badStatus.statusCode, 400);
+  assert.equal(badStatus.json().error, "status must be ACTIVE or DISABLED");
+  assert.equal(badDate.statusCode, 400);
+  assert.equal(badDate.json().error, "expiresAt must be an ISO date string or null");
+  assert.equal(empty.statusCode, 400);
+  assert.equal(empty.json().error, "Provide status or expiresAt");
+});
+
+test("PATCH /links/:id returns 404 when the link is gone", async (t) => {
+  const app = await buildApp(config, {
+    redis: createRedisStub(),
+    prisma: {
+      user: { upsert: async () => ({ id: "unused" }) },
+      link: {
+        update: async () => {
+          throw Object.assign(new Error("Record to update not found"), { code: "P2025" });
+        }
+      }
+    }
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({ method: "PATCH", url: "/links/missing", payload: { status: "DISABLED" } });
+
+  assert.equal(response.statusCode, 404);
+  assert.deepEqual(response.json(), { error: "Link not found" });
 });

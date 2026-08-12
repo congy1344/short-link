@@ -32,9 +32,8 @@ model Link {
   expiresAt      DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
-  owner          User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner          User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   clickEvents    ClickEvent[]
-  dailyStats     DailyLinkStat[]
 
   @@index([ownerId, createdAt])
 }
@@ -53,17 +52,4 @@ model ClickEvent {
 
   @@index([linkId, clickedAt])
   @@index([clickedAt])
-}
-
-model DailyLinkStat {
-  id             String   @id @default(uuid())
-  linkId         String
-  day            DateTime @db.Date
-  clicks         Int      @default(0)
-  uniqueVisitors Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  link           Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
-
-  @@unique([linkId, day])
 }

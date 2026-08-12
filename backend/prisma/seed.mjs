@@ -2,7 +2,13 @@ import { LinkStatus, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const day = new Date("2026-07-01T00:00:00.000Z");
+// ponytail: seed relative to today so demo data never falls out of the dashboard's 30-day window.
+const day = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+day.setUTCHours(0, 0, 0, 0);
+
+function at(hours, minutes) {
+  return new Date(day.getTime() + hours * 60 * 60 * 1000 + minutes * 60 * 1000);
+}
 
 async function main() {
   const user = await prisma.user.upsert({
@@ -55,15 +61,11 @@ async function main() {
     where: { linkId: { in: linkIds } }
   });
 
-  await prisma.dailyLinkStat.deleteMany({
-    where: { linkId: { in: linkIds } }
-  });
-
   await prisma.clickEvent.createMany({
     data: [
       {
         linkId: docsLink.id,
-        clickedAt: new Date("2026-07-01T09:00:00.000Z"),
+        clickedAt: at(9, 0),
         referrerHost: "github.com",
         browser: "Chrome",
         os: "Windows",
@@ -72,7 +74,7 @@ async function main() {
       },
       {
         linkId: docsLink.id,
-        clickedAt: new Date("2026-07-01T10:30:00.000Z"),
+        clickedAt: at(10, 30),
         referrerHost: "linkedin.com",
         browser: "Safari",
         os: "iOS",
@@ -81,29 +83,12 @@ async function main() {
       },
       {
         linkId: launchLink.id,
-        clickedAt: new Date("2026-07-01T11:15:00.000Z"),
+        clickedAt: at(11, 15),
         referrerHost: "x.com",
         browser: "Firefox",
         os: "Linux",
         device: "desktop",
         ipHash: "demo-ip-3"
-      }
-    ]
-  });
-
-  await prisma.dailyLinkStat.createMany({
-    data: [
-      {
-        linkId: docsLink.id,
-        day,
-        clicks: 2,
-        uniqueVisitors: 2
-      },
-      {
-        linkId: launchLink.id,
-        day,
-        clicks: 1,
-        uniqueVisitors: 1
       }
     ]
   });

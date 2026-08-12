@@ -21,7 +21,6 @@ export async function buildApp(config: AppConfig = loadConfig(), deps: AppDeps =
     trustProxy: config.trustedProxy
   });
 
-  app.decorate("config", config);
   app.addHook("onRequest", async (_request, reply) => {
     setSecurityHeaders(reply);
   });

@@ -41,6 +41,20 @@ type RedirectLink = {
   expiresAt: Date | string | null;
 };
 
+type UpdatedLink = {
+  id: string;
+  shortCode: string;
+  destinationUrl: string;
+  title: string | null;
+  status: LinkStatus;
+  expiresAt: Date | string | null;
+};
+
+type UpdateLinkData = {
+  status?: LinkStatus;
+  expiresAt?: Date | null;
+};
+
 type OwnerLink = {
   id: string;
   shortCode: string;
@@ -100,6 +114,18 @@ export type LinkDatabase = {
       where: { id: string };
       select: { id: true };
     }): Promise<{ id: string } | null>;
+    update(args: {
+      where: { id: string };
+      data: UpdateLinkData;
+      select: {
+        id: true;
+        shortCode: true;
+        destinationUrl: true;
+        title: true;
+        status: true;
+        expiresAt: true;
+      };
+    }): Promise<UpdatedLink>;
     findMany(args: {
       where: { ownerId: string };
       orderBy: { createdAt: "desc" };
@@ -127,11 +153,14 @@ export type LinkDatabase = {
 export type LinkCache = {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options: { EX: number }): Promise<unknown>;
+  del(key: string): Promise<unknown>;
   eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown>;
   ping(): Promise<unknown>;
 };
 
 type ParseResult = { ok: true; input: CreateLinkInput } | { ok: false; message: string };
+
+type UpdateParseResult = { ok: true; data: UpdateLinkData } | { ok: false; message: string };
 
 export class ShortCodeConflictError extends Error {
   constructor() {
@@ -170,6 +199,41 @@ export function parseCreateLinkBody(body: unknown): ParseResult {
       ...(ownerEmail ? { ownerEmail } : {})
     }
   };
+}
+
+export function parseUpdateLinkBody(body: unknown): UpdateParseResult {
+  if (!isRecord(body)) {
+    return { ok: false, message: "Request body must be an object" };
+  }
+
+  const data: UpdateLinkData = {};
+
+  if (body.status !== undefined) {
+    if (body.status !== LinkStatus.ACTIVE && body.status !== LinkStatus.DISABLED) {
+      return { ok: false, message: "status must be ACTIVE or DISABLED" };
+    }
+
+    data.status = body.status;
+  }
+
+  if (body.expiresAt !== undefined) {
+    if (body.expiresAt === null) {
+      data.expiresAt = null;
+    } else {
+      const expiresAt = typeof body.expiresAt === "string" ? new Date(body.expiresAt) : new Date(Number.NaN);
+      if (Number.isNaN(expiresAt.getTime())) {
+        return { ok: false, message: "expiresAt must be an ISO date string or null" };
+      }
+
+      data.expiresAt = expiresAt;
+    }
+  }
+
+  if (Object.keys(data).length === 0) {
+    return { ok: false, message: "Provide status or expiresAt" };
+  }
+
+  return { ok: true, data };
 }
 
 export async function createShortLink(
@@ -285,6 +349,33 @@ export const linksRoutes: FastifyPluginAsync<{
     }
   });
 
+  app.patch("/links/:id", async (request, reply) => {
+    const parsed = parseUpdateLinkBody(request.body);
+    if (!parsed.ok) {
+      return reply.code(400).send({ error: parsed.message });
+    }
+
+    let link: UpdatedLink;
+    try {
+      link = await options.prisma.link.update({
+        where: { id: (request.params as { id: string }).id },
+        data: parsed.data,
+        select: { id: true, shortCode: true, destinationUrl: true, title: true, status: true, expiresAt: true }
+      });
+    } catch (error) {
+      if (isRecordNotFoundError(error)) {
+        return reply.code(404).send({ error: "Link not found" });
+      }
+
+      throw error;
+    }
+
+    // The redirect cache holds the pre-update status and expiry, so drop it instead of waiting out the TTL.
+    await options.redis.del(`link:${link.shortCode}`);
+
+    return link;
+  });
+
   app.get("/links/:id/stats", async (request, reply) => {
     const { id } = request.params as { id: string };
     const days = parseDays((request.query as { days?: string }).days);
@@ -360,6 +451,10 @@ function isHttpUrl(value: string): boolean {
 
 function isUniqueConstraintError(error: unknown): boolean {
   return isRecord(error) && error.code === "P2002";
+}
+
+function isRecordNotFoundError(error: unknown): boolean {
+  return isRecord(error) && error.code === "P2025";
 }
 
 async function isRateLimited(redis: LinkCache, scope: string, ip: string, limit: number): Promise<boolean> {
