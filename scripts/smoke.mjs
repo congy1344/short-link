@@ -38,6 +38,15 @@ assert.equal(redirect.headers.get("location"), destinationUrl);
 const stats = await expectJson(`${apiBaseUrl}/links/${created.id}/stats?days=30`, {}, 200);
 assert.ok(stats.totalClicks >= 1, "redirect should be tracked in analytics");
 
+await expectJson(`${apiBaseUrl}/links/${created.id}`, {
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ status: "DISABLED" })
+}, 200);
+
+const afterDisable = await fetchWithTimeout(`${redirectBaseUrl}/${created.shortCode}`, { redirect: "manual" });
+assert.equal(afterDisable.status, 410, "disabling must evict the cached redirect instead of waiting out the TTL");
+
 console.log(`smoke ok: ${webBaseUrl} -> ${created.shortCode} -> ${destinationUrl}`);
 
 function baseUrl(value) {
