@@ -16,4 +16,4 @@ WORKDIR /app/backend
 ENV NODE_ENV=production
 EXPOSE 4000
 
-CMD ["npm", "run", "start"]
+CMD ["sh", "-c", "npm run db:deploy && exec npm run start"]
