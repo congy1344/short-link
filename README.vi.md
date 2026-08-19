@@ -44,7 +44,6 @@ Browser gọi Fastify API. Redis xử lý redirect cache và trạng thái rate 
 | Hash địa chỉ IP | Ước tính visitor duy nhất mà không lưu IP thô. |
 | Ghi nhận click không chặn redirect | Analytics chậm không được làm trễ redirect thành công. |
 | Rate limiting trên Redis | Chia sẻ giới hạn giữa nhiều API instance. |
-| Phạm vi demo rõ ràng | Demo chưa có authentication; dashboard dùng một demo workspace được seed sẵn. |
 
 ## Kiểm thử và CI
 
@@ -56,6 +55,10 @@ npm test
 npm run build
 docker compose build
 ```
+
+## Phạm vi demo và xác thực
+
+Phiên bản portfolio hiện chưa triển khai authentication. Dashboard sử dụng demo workspace được seed sẵn (`demo@shortlink.local`); model `User` vẫn lưu quan hệ sở hữu link để thể hiện đúng data model. Khi mở rộng cho production, project cần bổ sung session hoặc token authentication và kiểm tra quyền sở hữu quanh link service hiện có.
 
 ## Chạy local bằng Docker
 
@@ -88,8 +91,17 @@ Render là host hiện tại của demo; VPS hoặc nền tảng container khác
 ## Cấu trúc project
 
 ```text
-backend/src/   Fastify API, Prisma schema/migration, Redis integration, test
-frontend/src/  Next.js dashboard và giao diện analytics
-docs/          Plan và tài liệu hỗ trợ
-docker-compose.yml
+backend/src/
+├── links.ts         # barrel tương thích cho link feature
+└── links/
+    ├── routes.ts    # Fastify handlers và response mapping
+    ├── service.ts   # owner upsert và tạo short code an toàn khi trùng
+    ├── cache.ts     # redirect cache và Redis rate limiting
+    ├── analytics.ts # tổng hợp click và ghi nhận best-effort
+    ├── validation.ts
+    └── types.ts
+
+frontend/src/
+├── app/page.tsx     # state và bố cục dashboard
+└── components/      # form, table, metric, chart và breakdown components
 ```
