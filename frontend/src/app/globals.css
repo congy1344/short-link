@@ -498,6 +498,12 @@ tr:last-child td {
   color: var(--accent-strong);
 }
 
+.row-actions {
+  display: flex;
+  gap: 0.75rem;
+  white-space: nowrap;
+}
+
 .destination {
   color: #2f3a34;
   display: inline-block;

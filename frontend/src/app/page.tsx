@@ -9,10 +9,12 @@ import { CreateLinkForm } from "../components/CreateLinkForm";
 import { LinkTable, type StatusFilter } from "../components/LinkTable";
 import { Metrics } from "../components/Metrics";
 
+const REFRESH_INTERVAL_MS = 5_000;
+
 export default function Page() {
   const [links, setLinks] = useState<LinkSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>();
-  const [stats, setStats] = useState<LinkStats | null>(null);
+  const [statsResult, setStatsResult] = useState<{ linkId: string; data: LinkStats } | null>(null);
   const [isLoadingLinks, setIsLoadingLinks] = useState(true);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,6 +26,9 @@ export default function Page() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const stats = statsResult && statsResult.linkId === selectedId ? statsResult.data : null;
 
   useEffect(() => {
     let ignore = false;
@@ -64,36 +69,43 @@ export default function Page() {
 
   useEffect(() => {
     if (!selectedId) {
-      setStats(null);
+      setStatsResult(null);
       return;
     }
 
     let ignore = false;
     const linkId = selectedId;
 
-    async function loadStats() {
-      setIsLoadingStats(true);
+    async function loadStats(initial: boolean) {
+      if (initial) setIsLoadingStats(true);
 
       try {
         const nextStats = await getLinkStats(linkId);
         if (!ignore) {
-          setStats(nextStats);
+          setStatsResult({ linkId, data: nextStats });
           setError(null);
         }
+
+        if (!initial) {
+          const nextLinks = await listLinks();
+          if (!ignore) setLinks(nextLinks);
+        }
       } catch (loadError) {
-        if (!ignore) {
-          setStats(null);
+        if (!ignore && initial) {
+          setStatsResult(null);
           setError(errorMessage(loadError));
         }
       } finally {
-        if (!ignore) setIsLoadingStats(false);
+        if (!ignore && initial) setIsLoadingStats(false);
       }
     }
 
-    void loadStats();
+    void loadStats(true);
+    const refreshTimer = window.setInterval(() => void loadStats(false), REFRESH_INTERVAL_MS);
 
     return () => {
       ignore = true;
+      window.clearInterval(refreshTimer);
     };
   }, [selectedId]);
 
@@ -162,10 +174,16 @@ export default function Page() {
         ...(customAlias ? { customAlias } : {})
       });
 
-      await reloadLinks(created.id);
       form.reset();
       setNotice(`Created ${created.shortCode}`);
       setShortUrl(new URL("/" + created.shortCode, window.location.origin).toString());
+
+      try {
+        await reloadLinks(created.id);
+        setError(null);
+      } catch (reloadError) {
+        setError(errorMessage(reloadError));
+      }
     } catch (createError) {
       setFormError(errorMessage(createError));
     } finally {
@@ -188,6 +206,18 @@ export default function Page() {
       setCopyLabel("Select link");
     }
   }
+
+  async function copyLink(link: LinkSummary) {
+    if (!navigator.clipboard) return;
+
+    try {
+      await navigator.clipboard.writeText(new URL("/" + link.shortCode, window.location.origin).toString());
+      setCopiedId(link.id);
+    } catch {
+      setCopiedId(null);
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="top-nav">
@@ -246,9 +276,11 @@ export default function Page() {
             search={search}
             statusFilter={statusFilter}
             pendingId={pendingId}
+            copiedId={copiedId}
             onSearchChange={setSearch}
             onStatusFilterChange={setStatusFilter}
             onSelect={setSelectedId}
+            onCopy={(link) => void copyLink(link)}
             onToggle={(link) => void toggleStatus(link)}
           />
           <AnalyticsPanel selectedLink={selectedLink} stats={stats} isLoadingStats={isLoadingStats} />

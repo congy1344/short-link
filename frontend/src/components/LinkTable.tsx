@@ -11,9 +11,11 @@ type LinkTableProps = {
   search: string;
   statusFilter: StatusFilter;
   pendingId: string | null;
+  copiedId: string | null;
   onSearchChange: (value: string) => void;
   onStatusFilterChange: (value: StatusFilter) => void;
   onSelect: (id: string) => void;
+  onCopy: (link: LinkSummary) => void;
   onToggle: (link: LinkSummary) => void;
 };
 
@@ -25,9 +27,11 @@ export function LinkTable({
   search,
   statusFilter,
   pendingId,
+  copiedId,
   onSearchChange,
   onStatusFilterChange,
   onSelect,
+  onCopy,
   onToggle
 }: LinkTableProps) {
   return (
@@ -98,14 +102,19 @@ export function LinkTable({
                   </td>
                   <td data-label="Created">{formatDate(link.createdAt)}</td>
                   <td data-label="Actions">
-                    <button
-                      className="text-button"
-                      disabled={pendingId === link.id}
-                      onClick={() => onToggle(link)}
-                      type="button"
-                    >
-                      {link.status === "ACTIVE" ? "Disable" : "Enable"}
-                    </button>
+                    <div className="row-actions">
+                      <button className="text-button" onClick={() => onCopy(link)} type="button">
+                        {copiedId === link.id ? "Copied" : "Copy link"}
+                      </button>
+                      <button
+                        className="text-button"
+                        disabled={pendingId === link.id}
+                        onClick={() => onToggle(link)}
+                        type="button"
+                      >
+                        {link.status === "ACTIVE" ? "Disable" : "Enable"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
