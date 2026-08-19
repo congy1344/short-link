@@ -1,8 +1,17 @@
 # Shortlink
 
-Full-stack URL shortener with Redis redirect caching, privacy-aware click analytics, rate limiting, and a Dockerized deployment path.
+[![English](https://img.shields.io/badge/lang-English-blue)](./README.md)
+[![Tiếng Việt](https://img.shields.io/badge/lang-Tiếng%20Việt-red)](./README.vi.md)
 
-Shortlink is intentionally small enough to understand end-to-end, but complete enough to demonstrate production-minded backend and frontend decisions: a Fastify API, PostgreSQL persistence through Prisma, Redis for hot-path work, and a Next.js dashboard.
+Shortlink combines a Fastify API, PostgreSQL persistence through Prisma, Redis-backed caching and rate limiting, and a Next.js dashboard for managing links and inspecting click analytics.
+
+## Live demo
+
+- Web dashboard: [short-link-1-46io.onrender.com](https://short-link-1-46io.onrender.com/)
+- API: [short-link-wy7x.onrender.com](https://short-link-wy7x.onrender.com/)
+- API health check: [healthz](https://short-link-wy7x.onrender.com/healthz)
+
+The demo runs on Render's free tier, so the first request may take a few seconds while a service wakes up.
 
 ## What it demonstrates
 
@@ -126,13 +135,3 @@ frontend/src/
 ├── app/page.tsx     # dashboard state and page composition
 └── components/      # focused create, table, metric, chart, and breakdown views
 ```
-
-## GitHub profile metadata
-
-Use the following values in the repository's **About** panel:
-
-- Description: `Full-stack URL shortener with Redis caching, click analytics, rate limiting, and Dockerized deployment.`
-- Website: your deployed dashboard URL
-- Topics: `typescript`, `fastify`, `nextjs`, `postgresql`, `redis`, `prisma`, `docker`, `url-shortener`
-
-Once deployed, add the live dashboard URL and one dashboard screenshot near the top of this README so the repository opens with both the product and the engineering story visible.
