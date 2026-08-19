@@ -11,11 +11,11 @@ type AnalyticsPanelProps = {
 
 export function AnalyticsPanel({ selectedLink, stats, isLoadingStats }: AnalyticsPanelProps) {
   return (
-    <section className="panel detail-panel" aria-labelledby="detail-title">
+    <section id="detail-title" className="panel detail-panel" aria-labelledby="detail-heading">
       <div className="panel-header">
         <div>
           <p className="section-kicker">Last 30 days</p>
-          <h2 id="detail-title">{selectedLink?.title || selectedLink?.shortCode || "Link detail"}</h2>
+          <h2 id="detail-heading">{selectedLink?.title || selectedLink?.shortCode || "Link detail"}</h2>
           {selectedLink ? <p className="muted destination-line">{selectedLink.destinationUrl}</p> : null}
         </div>
         {selectedLink ? <span className={`status-badge status-${selectedLink.status.toLowerCase()}`}>{selectedLink.status.toLowerCase()}</span> : null}

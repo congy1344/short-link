@@ -340,6 +340,12 @@ h3 {
   padding: 1rem;
 }
 
+.create-panel,
+.links-panel,
+.detail-panel {
+  scroll-margin-top: 7rem;
+}
+
 .links-panel,
 .detail-panel {
   grid-column: 2;
@@ -388,6 +394,34 @@ h3 {
 .form-message.error {
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+.short-url-result {
+  background: var(--panel-muted);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.7rem;
+}
+
+.short-url-label {
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.copy-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.copy-row input {
+  min-width: 0;
+}
+
+.copy-row button {
+  flex: 0 0 auto;
 }
 
 .table-tools {

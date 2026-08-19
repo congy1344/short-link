@@ -19,6 +19,8 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [shortUrl, setShortUrl] = useState<string | null>(null);
+  const [copyLabel, setCopyLabel] = useState("Copy");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -137,6 +139,8 @@ export default function Page() {
     event.preventDefault();
     setFormError(null);
     setNotice(null);
+    setShortUrl(null);
+    setCopyLabel("Copy");
 
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -161,6 +165,7 @@ export default function Page() {
       await reloadLinks(created.id);
       form.reset();
       setNotice(`Created ${created.shortCode}`);
+      setShortUrl(new URL("/" + created.shortCode, window.location.origin).toString());
     } catch (createError) {
       setFormError(errorMessage(createError));
     } finally {
@@ -168,6 +173,21 @@ export default function Page() {
     }
   }
 
+  async function copyShortUrl() {
+    if (!shortUrl) return;
+
+    if (!navigator.clipboard) {
+      setCopyLabel("Select link");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(shortUrl);
+      setCopyLabel("Copied");
+    } catch {
+      setCopyLabel("Select link");
+    }
+  }
   return (
     <main className="app-shell">
       <header className="top-nav">
@@ -209,7 +229,15 @@ export default function Page() {
         <Metrics totalClicks={totalClicks} activeLinks={activeLinks} topReferrer={topReferrer} />
 
         <section className="dashboard-grid">
-          <CreateLinkForm isSubmitting={isSubmitting} formError={formError} notice={notice} onSubmit={handleCreate} />
+          <CreateLinkForm
+            isSubmitting={isSubmitting}
+            formError={formError}
+            notice={notice}
+            shortUrl={shortUrl}
+            copyLabel={copyLabel}
+            onSubmit={handleCreate}
+            onCopy={() => void copyShortUrl()}
+          />
           <LinkTable
             links={filteredLinks}
             isLoading={isLoadingLinks}

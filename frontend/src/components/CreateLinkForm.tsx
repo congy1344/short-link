@@ -4,16 +4,19 @@ type CreateLinkFormProps = {
   isSubmitting: boolean;
   formError: string | null;
   notice: string | null;
+  shortUrl: string | null;
+  copyLabel: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onCopy: () => void;
 };
 
-export function CreateLinkForm({ isSubmitting, formError, notice, onSubmit }: CreateLinkFormProps) {
+export function CreateLinkForm({ isSubmitting, formError, notice, shortUrl, copyLabel, onSubmit, onCopy }: CreateLinkFormProps) {
   return (
-    <section className="panel create-panel" aria-labelledby="create-title">
+    <section id="create-title" className="panel create-panel" aria-labelledby="create-heading">
       <div className="panel-header">
         <div>
           <p className="section-kicker">New short link</p>
-          <h2 id="create-title">Create link</h2>
+          <h2 id="create-heading">Create link</h2>
         </div>
       </div>
       <form className="create-form" id="create-link-form" onSubmit={onSubmit}>
@@ -35,6 +38,22 @@ export function CreateLinkForm({ isSubmitting, formError, notice, onSubmit }: Cr
           </p>
         ) : null}
         {notice ? <p className="form-message">{notice}</p> : null}
+        {shortUrl ? (
+          <div className="short-url-result" aria-live="polite">
+            <span className="short-url-label">Short link ready</span>
+            <div className="copy-row">
+              <input
+                aria-label="Shortened link"
+                readOnly
+                value={shortUrl}
+                onClick={(event) => event.currentTarget.select()}
+              />
+              <button type="button" onClick={onCopy}>
+                {copyLabel}
+              </button>
+            </div>
+          </div>
+        ) : null}
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Creating" : "Create"}
         </button>

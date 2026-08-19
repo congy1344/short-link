@@ -31,11 +31,11 @@ export function LinkTable({
   onToggle
 }: LinkTableProps) {
   return (
-    <section className="panel links-panel" aria-labelledby="links-title">
+    <section id="links-title" className="panel links-panel" aria-labelledby="links-heading">
       <div className="panel-header table-tools">
         <div>
           <p className="section-kicker">Library</p>
-          <h2 id="links-title">Links</h2>
+          <h2 id="links-heading">Links</h2>
         </div>
         <div className="controls">
           <input
