@@ -80,7 +80,10 @@ npm run typecheck
 npm test
 npm run build
 npm run db:deploy --workspace @shortlink/backend
+npm run dev
 ```
+
+Lệnh npm run dev tự build và khởi động API, chờ API sẵn sàng rồi mới khởi động dashboard tại http://localhost:3000. Không cần mở thêm terminal cho API.
 
 ## Deploy
 
