@@ -11,7 +11,7 @@ Shortlink combines a Fastify API, PostgreSQL persistence through Prisma, Redis-b
 - API: [short-link-wy7x.onrender.com](https://short-link-wy7x.onrender.com/)
 - API health check: [healthz](https://short-link-wy7x.onrender.com/healthz)
 
-The demo runs on Render's free tier, so the first request may take a few seconds while a service wakes up.
+The demo runs on Render's free tier, so the first request can take about a minute while a service wakes up. The dashboard retries transient API GET failures, so you do not need to open the API URL manually.
 
 ## What it demonstrates
 

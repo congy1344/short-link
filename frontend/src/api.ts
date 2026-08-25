@@ -34,6 +34,8 @@ export type CreatedLink = {
 };
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api").replace(/\/$/, "");
+const RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 15_000, 15_000];
+const RETRYABLE_STATUS_CODES = new Set([500, 502, 503, 504]);
 
 export async function listLinks(): Promise<LinkSummary[]> {
   const data = await request<{ links: LinkSummary[] }>("/links");
@@ -60,9 +62,30 @@ export async function createLink(input: CreateLinkInput): Promise<CreatedLink> {
   });
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, init);
-  if (!response.ok) {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const canRetry = (init.method ?? "GET").toUpperCase() === "GET";
+
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+    let response: Response;
+
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, init);
+    } catch (error) {
+      if (!canRetry || attempt === RETRY_DELAYS_MS.length) throw error;
+      await delay(RETRY_DELAYS_MS[attempt]);
+      continue;
+    }
+
+    if (response.ok) {
+      return (await response.json()) as T;
+    }
+
+    const shouldRetry = canRetry && RETRYABLE_STATUS_CODES.has(response.status) && attempt < RETRY_DELAYS_MS.length;
+    if (shouldRetry) {
+      await delay(RETRY_DELAYS_MS[attempt]);
+      continue;
+    }
+
     let message = `Request failed with status ${response.status}`;
 
     try {
@@ -75,5 +98,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message);
   }
 
-  return (await response.json()) as T;
+  throw new Error("Request failed while contacting the API");
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }

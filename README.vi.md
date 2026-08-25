@@ -11,7 +11,7 @@ Shortlink kết hợp Fastify API, PostgreSQL được truy cập qua Prisma, Re
 - API: [short-link-wy7x.onrender.com](https://short-link-wy7x.onrender.com/)
 - API health check: [healthz](https://short-link-wy7x.onrender.com/healthz)
 
-Demo đang chạy trên Render free tier, vì vậy request đầu tiên có thể mất vài giây để service thức dậy.
+Demo đang chạy trên Render free tier, vì vậy request đầu tiên có thể mất khoảng một phút để service thức dậy. Dashboard tự retry các request GET tạm thời lỗi nên không cần mở riêng URL API.
 
 ## Tính năng
 
