@@ -112,7 +112,7 @@ NODE_ENV=production
 WEB_PORT=3000
 ```
 
-For split services, configure the API with `DATABASE_URL`, `REDIS_URL`, `IP_HASH_SECRET`, and `TRUSTED_PROXY` when it sits behind a proxy. Build the web service with `API_INTERNAL_ORIGIN` pointing at the API origin. The backend image runs `db:deploy` before starting the server, and the deployment should be checked with `/readyz` and:
+For split services, configure the API with `DATABASE_URL`, `REDIS_URL`, `IP_HASH_SECRET`, and `TRUSTED_PROXY` when it sits behind a proxy. On Render, set `TRUSTED_PROXY=true`; do not use `0.0.0.0/0` because `proxy-addr` rejects `/0`. Build the web service with `API_INTERNAL_ORIGIN` pointing at the API origin. The backend image runs `db:deploy` before starting the server, and the deployment should be checked with `/readyz` and:
 
 ```bash
 WEB_BASE_URL=https://your-web.example.com npm run smoke

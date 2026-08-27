@@ -87,7 +87,7 @@ Lệnh npm run dev tự build và khởi động API, chờ API sẵn sàng rồ
 
 ## Deploy
 
-Có thể deploy API và web thành các service riêng biệt hoặc chạy toàn bộ stack trên Docker Compose. Cấu hình `DATABASE_URL`, `REDIS_URL`, `IP_HASH_SECRET` và origin của frontend trước khi chạy migration và khởi động service.
+Có thể deploy API và web thành các service riêng biệt hoặc chạy toàn bộ stack trên Docker Compose. Cấu hình `DATABASE_URL`, `REDIS_URL`, `IP_HASH_SECRET` và origin của frontend trước khi chạy migration và khởi động service. Trên Render, đặt `TRUSTED_PROXY=true`; không đặt `0.0.0.0/0` vì `proxy-addr` từ chối range `/0`.
 
 Render là host hiện tại của demo; VPS hoặc nền tảng container khác có thể dùng cùng Docker image.
 
