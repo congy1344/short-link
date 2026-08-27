@@ -4,8 +4,18 @@ export type AppConfig = {
   redisUrl: string;
   ipHashSecret: string;
   nodeEnv: string;
-  trustedProxy: string | false;
+  trustedProxy: string | boolean;
 };
+
+function parseTrustedProxy(value: string | undefined): string | boolean {
+  if (!value) return false;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+
+  return value;
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
@@ -14,6 +24,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     redisUrl: env.REDIS_URL ?? "redis://localhost:6379",
     ipHashSecret: env.IP_HASH_SECRET ?? "dev-only-change-me",
     nodeEnv: env.NODE_ENV ?? "development",
-    trustedProxy: env.TRUSTED_PROXY || false
+    trustedProxy: parseTrustedProxy(env.TRUSTED_PROXY)
   };
 }
